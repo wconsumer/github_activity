@@ -40,7 +40,7 @@ function github_activity_block_view($block_name = '') {
 
   $api = null;
   try {
-    $api = Wconsumer::instance()->services->github->api(NULL, array('gist'));
+    $api = Wconsumer::$github->api(NULL, array('gist'));
   }
   catch (Exception\NotLoggedInUser $e) {
     return $error("Please sign up or log in to see your GitHub activity");
