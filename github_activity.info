@@ -1,0 +1,5 @@
+name =  "Github Activity block"
+description = Module shows github user activity
+package = "wconsumer"
+core = 7.x
+dependencies[] = "wconsumer"

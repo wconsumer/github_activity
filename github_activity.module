@@ -1,0 +1,72 @@
+<?php
+namespace Drupal\wconsumer;
+use Drupal\wconsumer\Service\Exception;
+
+
+function github_activity_wconsumer_define_required_scopes() {
+  return array('gist');
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function github_activity_block_info() {
+  $blocks = array();
+
+  $blocks['github_activity'] = array(
+    'info' => t('GitHub Activity'),
+	'status' => TRUE,
+    'region' => 'sidebar_first',
+    'visibility' => BLOCK_VISIBILITY_PHP
+  ); 
+
+  return $blocks;
+}
+
+function github_activity_block_view($block_name = '') {
+  $block = array();
+  if ($block_name != 'github_activity') {
+    return null;
+  }
+
+  // $block = function($contents) {
+    // return array(
+      // 'subject' => 'GitHub Activity',
+      // 'content' => array(
+        // '#markup' =>  $contents,
+      // ),
+    // );
+  // };
+
+  // $error = function($message) use ($block) {
+    // return $block('<div class="messages error">'.htmlspecialchars($message).'</div>');
+  // };
+
+  // $api = null;
+  // try {
+    // $api = Wconsumer::$github->api(NULL, array('gist'));
+  // }
+  // catch (Exception\NotLoggedInUser $e) {
+    // return $error("Please sign up or log in to see your GitHub activity");
+  // }
+  // catch (Exception\ServiceInactive $e) {
+    // return $error("The GitHub service integration is currently deactivated by the website administrator");
+  // }
+  // catch (Exception\NoUserCredentials $e) {
+    // return $error("Before you can see your GitHub activity you need to connect with GitHub in your profile");
+  // }
+  // catch (Exception\AdditionalScopesRequired $e) {
+    // return $error("Please re-connect to GitHub in your profile to see your github activity");
+  // }
+
+  // $events = null;
+  // try {
+    // $user = $api->get('/user')->send()->json();
+    // $events = $api->get("/users/{$user['login']}/events")->send()->json();
+  // }
+  // catch (\Exception $e) {
+    // return $error("Error while requesting GitHub. Please try again later.");
+  // }
+
+  // return $block('<pre>'.htmlspecialchars(var_export($events, true)).'</pre>');
+}
