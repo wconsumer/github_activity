@@ -13,177 +13,7 @@ function github_activity_menu() {
     return $items;
   }
 function github_activity_view() {
-	$credentials = array('token'=>'514f28a1a4d38822da1775533a6ab4750557bf65', 'secret'=>'de32d4cb63f142276420cc565fe06609dd5b4d9a', 'scopes'=>array('gist', 'repo'));
-    // $credentials->setServiceCredentials($credentials);
-	// assertSame('514f28a1a4d38822da1775533a6ab4750557bf65', $credentials->token);
-    // assertSame('de32d4cb63f142276420cc565fe06609dd5b4d9a', $credentials->secret);
-    // assertSame(array('gist', 'repo'), $credentials->scopes);
-	$check_exist_service = db_select('wc_service', 'ws')
-							->fields('ws', array('service_id'))
-							->condition('service', 'github', '=')
-							->condition('credentials', json_encode($credentials), '=')
-							->execute()
-							->fetchAssoc(); 
 	
-	$check_exist_user = db_select('wc_user', 'wc')
-							->fields('wc', array('cred_id'))
-							->condition('service', 'github', '=')
-							->condition('credentials', json_encode($credentials), '=')
-							->execute()
-							->fetchAssoc(); 
-	if (!$check_exist_service) {
-		db_insert('wc_service') 
-							->fields(array(
-								'service_id'=> $GLOBALS['user']->uid,
-								'service'=> 'github',
-								'credentials '=> json_encode($credentials)
-								))
-							->execute();
-	}
-	if (!$check_exist_user) {
-		db_insert('wc_user') 
-							->fields(array(
-								'cred_id'=> 1,
-								'service'=> 'github',
-								'user_id'=> $GLOBALS['user']->uid,
-								'credentials '=> json_encode($credentials)
-								))
-							->execute();
-	}
-	$list_user = db_select('users', 'u')
-							->fields('u', array('uid','name','mail'))
-							->condition('uid', 0, '!=')
-							->execute();
-	
-	while ($user = $list_user->fetchAssoc()) {
-		  $api = null;
-		  try {
-			$api = Wconsumer::$github->api(NULL, array('gist', 'repo'));
-		  }
-		  catch (Exception\NotLoggedInUser $e) {
-			return $error("Please sign up or log in to see your GitHub activity");
-		  }
-		  catch (Exception\ServiceInactive $e) {
-			return $error("The GitHub service integration is currently deactivated by the website administrator");
-		  }
-		  catch (Exception\NoUserCredentials $e) {
-			return $error("Before you can see your GitHub activity you need to connect with GitHub in your profile");
-		  }
-		  catch (Exception\AdditionalScopesRequired $e) {
-			return $error("Please re-connect to GitHub in your profile to see your github activity");
-		  }
-
-		  $events = null;
-		  try {
-			$repositories = $api->get('/users/'.$user['name'])->send()->json();
-			if (!isset($repositories['name'])) {
-				$repositories['name'] =  "";
-			}
-			if (!isset($repositories['company'])) {
-				$repositories['company'] =  "";
-			}
-			if (!isset($repositories['blog'])) {
-				$repositories['blog'] =  "";
-			}
-			if (!isset($repositories['location'])) {
-				$repositories['location'] =  "";
-			}
-			if (!isset($repositories['bio'])) {
-				$repositories['bio'] =  "";
-			}
-			if (!isset($repositories['hireable'])) {
-				$repositories['hireable'] =  "";
-			}
-			$email = $user['mail'];
-			$user_id = $user['uid'];
-			$data = array(
-					  "uid"=> (int)$user_id,
-					  "login"=> $repositories['login'],
-					  "avatar_url"=> $repositories['avatar_url'],
-					  "gravatar_id"=> $repositories['gravatar_id'],
-					  "url"=> $repositories['url'],
-					  "name"=> $repositories['name'],
-					  "company"=> $repositories['company'],
-					  "blog"=> $repositories['blog'],
-					  "location"=> $repositories['location'],
-					  "email"=> $email,
-					  "hireable"=> (int)$repositories['hireable'],
-					  "bio"=> $repositories['bio'],
-					  "public_repos"=> $repositories['public_repos'],
-					  "public_gists"=> $repositories['public_gists'],
-					  "followers"=> $repositories['followers'],
-					  "following"=> $repositories['following'],
-					  "html_url"=> $repositories['html_url'],
-					  "created_at"=> REQUEST_TIME,
-					  "type"=> $repositories['type']
-					);
-			$check_exist = db_select('infor_user_github', 'icg')
-							->fields('icg', array('uid'))
-							->condition('uid', $user_id, '=')
-							->execute()
-							->fetchAssoc();
-			if($check_exist) {
-				$login = "";
-				$avatar_url = "";
-				$name = "";
-				$url = "";
-				$blog = "";
-				$company = "";
-				$location = "";
-				$bio = "";
-				$html_url = "";
-				if ($data['login'] != $check_exist['login']) {
-					$login = $data['login'];
-				}
-				if ($data['avatar_url'] != $check_exist['avatar_url']) {
-					$avatar_url = $data['avatar_url'];
-				}
-				if ($data['name'] != $check_exist['name']) {
-					$name = $data['name'];
-				}
-				if ($data['url'] != $check_exist['url']) {
-					$url = $data['url'];
-				}
-				if ($data['blog'] != $check_exist['blog']) {
-					$blog = $data['blog'];
-				
-				}if ($data['company'] != $check_exist['company']) {
-					$company = $data['company'];
-				}
-				if ($data['location'] != $check_exist['location']) {
-					$location = $data['location'];
-				}
-				if ($data['bio'] != $check_exist['bio']) {
-					$bio = $data['bio'];
-				}
-				if ($data['html_url'] != $check_exist['html_url']) {
-					$html_url = $data['html_url'];
-				}
-				db_update('infor_user_github') 
-					  ->fields(array(
-						'login' => $login,
-						'avatar_url' => $avatar_url,
-						'url' => $url,
-						'name' => $name,
-						'blog' => $blog,
-						'company' => $company,
-						'location' => $location,
-						'bio' => $bio,
-						'html_url' => $html
-					  ))
-					  ->condition('uid', $user_id, '=')
-					  ->execute();
-			} else {
-				$infor_user_github = db_insert('infor_user_github') // Table name no longer needs {}
-						->fields($data)
-						->execute();
-			}
-		  }
-		  catch (\Exception $e) {
-			return $error("Error while requesting GitHub. Please try again later.");
-		  }
-	}
-	echo "Successful";
 }
 
 /**
@@ -204,46 +34,138 @@ function github_activity_block_view($block_name = '') {
     return null;
   }
 
-  $block = function($contents) {
-    return array(
-      'subject' => 'GitHub Activity',
-      'content' => array(
-        '#markup' => $contents,
-      ),
-    );
-  };
-
-  $error = function($message) use ($block) {
-    return $block('<div class="messages error">'.htmlspecialchars($message).'</div>');
-  };
-
-  // $api = null;
-  // try {
-    // $api = Wconsumer::$github->api(NULL, array('gist', 'repo'));
-  // }
-  // catch (Exception\NotLoggedInUser $e) {
-    // return $error("Please sign up or log in to see your GitHub activity");
-  // }
-  // catch (Exception\ServiceInactive $e) {
-    // return $error("The GitHub service integration is currently deactivated by the website administrator");
-  // }
-  // catch (Exception\NoUserCredentials $e) {
-    // return $error("Before you can see your GitHub activity you need to connect with GitHub in your profile");
-  // }
-  // catch (Exception\AdditionalScopesRequired $e) {
-    // return $error("Please re-connect to GitHub in your profile to see your github activity");
-  // }
-
-  // $events = null;
-  // try {
-    // $user = $api->get('/users/seekerquoc')->send()->json();
-	// echo "<pre>";
-	// print_r($user);
-	// echo "</pre>";
-  // }
-  // catch (\Exception $e) {
-    // return $error("Error while requesting GitHub. Please try again later.");
-  // }
+  // $block = function($contents) {
+    // return array(
+      // 'subject' => 'GitHub Activity',
+      // 'content' => array(
+        // '#markup' => $contents,
+      // ),
+    // );
+  // };
+  
+  global $user;
+  if (empty($user->uid) || !Wconsumer::$github->isActive()) {
+    return NULL;
+  }
+  $html = "<table>";
+  $html .= "	<tr>";
+  $html .= "		<th>Project</th>";
+  $html .= "		<th>Name</th>";
+  $html .= "		<th>Email</th>";
+  $html .= "		<th>Message</th>";
+  $html .= "</tr>";
+  if ($user->uid) {
+		$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+		$api = Wconsumer::$github->api($user->uid, $scopes);
+		$info = $api->get('user')->send()->json();
+		$email = $api->get('/user/emails')->send()->json();
+		//get infor and save table info_github_activity
+		$email = @$emails[0];
+		$info = @$info;
+	  	$user_id = $user->uid;
+		$data = array(
+					"uid"=> (int)$user_id,
+					"login"=> $info['login'],
+					"avatar_url"=> $info['avatar_url'],
+					"gravatar_id"=> $info['gravatar_id'],
+					"url"=> $info['url'],
+					"name"=> $info['name'],
+					"company"=> $info['company'],
+					"blog"=> $info['blog'],
+					"location"=> $info['location'],
+					"email"=> $email,
+					"hireable"=> (int)$info['hireable'],
+					"bio"=> $info['bio'],
+					"public_repos"=> $info['public_repos'],
+					"public_gists"=> $info['public_gists'],
+					"followers"=> $info['followers'],
+					"following"=> $info['following'],
+					"html_url"=> $info['html_url'],
+					"created_at"=> REQUEST_TIME,
+					"type"=> $info['type']
+		);
+		$check_exist = db_select('infor_user_github', 'icg')
+					->fields('icg', array('uid'))
+					->condition('uid', $user_id, '=')
+					->execute()
+					->fetchAssoc();
+		if($check_exist) {
+			$login = "";
+			$avatar_url = "";
+			$name = "";
+			$url = "";
+			$blog = "";
+			$company = "";
+			$location = "";
+			$bio = "";
+			$html_url = "";
+			if ($info['login'] != $check_exist['login']) {
+				$login = $info['login'];
+			}
+			if ($info['avatar_url'] != $check_exist['avatar_url']) {
+				$avatar_url = $info['avatar_url'];
+			}
+			if ($info['name'] != $check_exist['name']) {
+				$name = $info['name'];
+			}
+			if ($info['url'] != $check_exist['url']) {
+				$url = $info['url'];
+			}
+			if ($info['blog'] != $check_exist['blog']) {
+				$blog = $info['blog'];
+			}
+			if ($info['company'] != $check_exist['company']) {
+				$company = $info['company'];
+			}
+			if ($info['location'] != $check_exist['location']) {
+				$location = $info['location'];
+			}
+			if ($info['bio'] != $check_exist['bio']) {
+				$bio = $info['bio'];
+			}
+			if ($info['html_url'] != $check_exist['html_url']) {
+				$html_url = $info['html_url'];
+			}
+			db_update('infor_user_github')
+						->fields(array(
+						'login' => $login,
+						'avatar_url' => $avatar_url,
+						'url' => $url,
+						'name' => $name,
+						'blog' => $blog,
+						'company' => $company,
+						'location' => $location,
+						'bio' => $bio,
+						'html_url' => $html_url
+						))
+						->condition('uid', $user_id, '=')
+						->execute();
+		} else {
+			$infor_user_github = db_insert('infor_user_github') // Table name no longer needs {}
+			->fields($data)
+			->execute();
+		}
+		//get activity of user github
+		$activity = $api->get('users/'.$info['login'].'/events')->send()->json();
+		// debug($activity);
+		foreach ($activity as $key=>$value) {
+			if ($value['type'] == 'PushEvent') {
+				foreach ($value['payload']['commits'] as $row) {
+					// if ($row['author']['name'] == $info['login']) {
+						 $html .= "<tr>";
+						 $html .= "	<td>".$value['repo']['name']."</td>";
+						 $html .= "	<td>".$row['author']['name']."</td>";
+						 $html .= "	<td>".$row['author']['email']."</td>";
+						 $html .= "	<td>".$row['message']."</td>";
+						 $html .= "</tr>";
+					// }
+				}
+			}
+		}
+  }
+  $block = array();
+  $block['content'] = $html;
+  return $block;
 }
  
 //create cron job
