@@ -5,167 +5,225 @@ use Drupal\wconsumer\Authentication\Credentials;
 use Drupal\wconsumer\Service\Base;
 
 function github_activity_menu() {
-    $items['github_activity'] = array(
-      'page callback' => 'github_activity_view',
-      'type' => MENU_CALLBACK,
-	  'access arguments' => TRUE
-    );
-    return $items;
-  }
-function github_activity_view() {
-	
-}
-
-/**
-* Implements hook_block_info().
-*/
-function github_activity_block_info() {
-  $blocks = array();
-
-  $blocks['github_activity'] = array(
-    'info' => t('GitHub Activity'),
+  $items['activity/user'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_activity_user',
+    'access callback' => TRUE,
+  );
+  $items['oauth/github'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_oauth_github_activity',
+    'access callback' => TRUE,
   );
 
-  return $blocks;
+  return $items;
 }
+function github_activity_form($form, &$form_state) {
+ $form = array (
+  '#action' => $GLOBAL['base_url'].'/oauth/github', //The action attribute of the HTML form tag
+  'submit' => array ( //We define a simple submit button
+   '#type' => 'submit',
+   '#value' => t('Authenticate Github'),
+   '#name' => t('github'),
+  ),
+ );
 
-function github_activity_block_view($block_name = '') {
-  if ($block_name != 'github_activity') {
-    return null;
+ return $form;
+}
+function wconsumer_activity_auth($service_name) {
+  $service = Wconsumer::instance()->services->get($service_name);
+  if (!isset($service)) {
+    drupal_set_message(t("{$service_name} service is not currently available"));
+    drupal_goto('<front>');
   }
 
-  // $block = function($contents) {
-    // return array(
-      // 'subject' => 'GitHub Activity',
-      // 'content' => array(
-        // '#markup' => $contents,
-      // ),
-    // );
-  // };
-  
+  if (!$service->isActive()) {
+    drupal_set_message(t("'{$service->getName()}' service is not currently active"));
+    drupal_goto('<front>');
+  }
+
+  // Persist the url which we want back to in session
+  if (!empty($_GET['destination'])) {
+    drupal_set_message($_GET['destination'], 'wconsumer_back_to_url');
+  }
+  unset($_GET['destination']);
+
   global $user;
-  if (empty($user->uid) || !Wconsumer::$github->isActive()) {
-    return NULL;
-  }
-  $html = "<table>";
-  $html .= "	<tr>";
-  $html .= "		<th>Project</th>";
-  $html .= "		<th>Name</th>";
-  $html .= "		<th>Email</th>";
-  $html .= "		<th>Message</th>";
-  $html .= "</tr>";
-  if ($user->uid) {
-		$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
-		$api = Wconsumer::$github->api($user->uid, $scopes);
-		$info = $api->get('user')->send()->json();
-		$email = $api->get('/user/emails')->send()->json();
-		//get infor and save table info_github_activity
-		$email = @$emails[0];
-		$info = @$info;
-	  	$user_id = $user->uid;
-		$data = array(
-					"uid"=> (int)$user_id,
-					"login"=> $info['login'],
-					"avatar_url"=> $info['avatar_url'],
-					"gravatar_id"=> $info['gravatar_id'],
-					"url"=> $info['url'],
-					"name"=> $info['name'],
-					"company"=> $info['company'],
-					"blog"=> $info['blog'],
-					"location"=> $info['location'],
-					"email"=> $email,
-					"hireable"=> (int)$info['hireable'],
-					"bio"=> $info['bio'],
-					"public_repos"=> $info['public_repos'],
-					"public_gists"=> $info['public_gists'],
-					"followers"=> $info['followers'],
-					"following"=> $info['following'],
-					"html_url"=> $info['html_url'],
-					"created_at"=> REQUEST_TIME,
-					"type"=> $info['type']
-		);
-		$check_exist = db_select('infor_user_github', 'icg')
-					->fields('icg', array('uid'))
-					->condition('uid', $user_id, '=')
-					->execute()
-					->fetchAssoc();
-		if($check_exist) {
-			$login = "";
-			$avatar_url = "";
-			$name = "";
-			$url = "";
-			$blog = "";
-			$company = "";
-			$location = "";
-			$bio = "";
-			$html_url = "";
-			if ($info['login'] != $check_exist['login']) {
-				$login = $info['login'];
-			}
-			if ($info['avatar_url'] != $check_exist['avatar_url']) {
-				$avatar_url = $info['avatar_url'];
-			}
-			if ($info['name'] != $check_exist['name']) {
-				$name = $info['name'];
-			}
-			if ($info['url'] != $check_exist['url']) {
-				$url = $info['url'];
-			}
-			if ($info['blog'] != $check_exist['blog']) {
-				$blog = $info['blog'];
-			}
-			if ($info['company'] != $check_exist['company']) {
-				$company = $info['company'];
-			}
-			if ($info['location'] != $check_exist['location']) {
-				$location = $info['location'];
-			}
-			if ($info['bio'] != $check_exist['bio']) {
-				$bio = $info['bio'];
-			}
-			if ($info['html_url'] != $check_exist['html_url']) {
-				$html_url = $info['html_url'];
-			}
-			db_update('infor_user_github')
-						->fields(array(
-						'login' => $login,
-						'avatar_url' => $avatar_url,
-						'url' => $url,
-						'name' => $name,
-						'blog' => $blog,
-						'company' => $company,
-						'location' => $location,
-						'bio' => $bio,
-						'html_url' => $html_url
-						))
-						->condition('uid', $user_id, '=')
-						->execute();
-		} else {
-			$infor_user_github = db_insert('infor_user_github') // Table name no longer needs {}
-			->fields($data)
-			->execute();
-		}
-		//get activity of user github
-		$activity = $api->get('users/'.$info['login'].'/events')->send()->json();
-		// debug($activity);
-		foreach ($activity as $key=>$value) {
-			if ($value['type'] == 'PushEvent') {
-				foreach ($value['payload']['commits'] as $row) {
-					// if ($row['author']['name'] == $info['login']) {
-						 $html .= "<tr>";
-						 $html .= "	<td>".$value['repo']['name']."</td>";
-						 $html .= "	<td>".$row['author']['name']."</td>";
-						 $html .= "	<td>".$row['author']['email']."</td>";
-						 $html .= "	<td>".$row['message']."</td>";
-						 $html .= "</tr>";
-					// }
+  $scopes = array_filter(module_invoke_all('wconsumer_define_required_scopes', $service));
+  $service->authentication->authenticate($user, $scopes);
+}
+function _oauth_github_activity() {
+	global $user;
+
+	$serviceName = 'github';
+	/** @var \Drupal\wconsumer\Service\Base $service */
+	$service = Wconsumer::instance()->services->{$serviceName};
+	// Either authenticate them or log them out
+	if ($service->checkAuthentication('user', $user->uid)) {
+		$service->authentication->logout($user);
+		drupal_set_message(t('Your '.$serviceName.' service has been revoked.'));
+	}
+	else {
+		wconsumer_activity_auth($serviceName);
+	}
+}
+function _activity_user() {
+	global $user;
+	$credentials = Wconsumer::$github->getCredentials($user->uid);
+	if ($user->uid == 1) {
+		$html = "<table>";
+		$html .= "	<tr>";
+		$html .= "		<th>Project</th>";
+		$html .= "		<th>Name</th>";
+		$html .= "		<th>Email</th>";
+		$html .= "		<th>Message</th>";
+		$html .= "</tr>";
+		$list_user = db_select('infor_user_github', 'iug')
+					->fields('iug', array('uid','login'))
+					->execute();
+		while ($row_user = $list_user->fetchAssoc()) {
+			$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+			$api = Wconsumer::$github->api($row_user['uid'], $scopes);
+			//get activity of user github
+			$activity = $api->get('users/'.$row_user['login'].'/events')->send()->json();
+			foreach ($activity as $key=>$value) {
+				if ($value['type'] == 'PushEvent') {
+					foreach ($value['payload']['commits'] as $row) {
+						// if ($row['author']['name'] == $info['login']) {
+							 $html .= "<tr>";
+							 $html .= "	<td>".$value['repo']['name']."</td>";
+							 $html .= "	<td>".$row['author']['name']."</td>";
+							 $html .= "	<td>".$row['author']['email']."</td>";
+							 $html .= "	<td>".$row['message']."</td>";
+							 $html .= "</tr>";
+						// }
+					}
 				}
 			}
 		}
+		$html .= "</table>";
+	} else if ($user->uid != 0) {
+		if (!$credentials) {
+		  $html = "User not yet authorized access to his GitHub service profile. Click button:";
+		  $html .= render(drupal_get_form('github_activity_form'));
+		} else {
+			$html = "<table>";
+			$html .= "	<tr>";
+			$html .= "		<th>Project</th>";
+			$html .= "		<th>Name</th>";
+			$html .= "		<th>Email</th>";
+			$html .= "		<th>Message</th>";
+			$html .= "</tr>";
+			$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+			$api = Wconsumer::$github->api($user->uid, $scopes);
+			$info = $api->get('user')->send()->json();
+			$email = $api->get('/user/emails')->send()->json();
+			//get infor and save table info_github_activity
+			$email = @$emails[0];
+			$info = @$info;
+			$user_id = $user->uid;
+			$data = array(
+						"uid"=> (int)$user_id,
+						"login"=> $info['login'],
+						"avatar_url"=> $info['avatar_url'],
+						"gravatar_id"=> $info['gravatar_id'],
+						"url"=> $info['url'],
+						"name"=> $info['name'],
+						"company"=> $info['company'],
+						"blog"=> $info['blog'],
+						"location"=> $info['location'],
+						"email"=> $email,
+						"hireable"=> (int)$info['hireable'],
+						"bio"=> $info['bio'],
+						"public_repos"=> $info['public_repos'],
+						"public_gists"=> $info['public_gists'],
+						"followers"=> $info['followers'],
+						"following"=> $info['following'],
+						"html_url"=> $info['html_url'],
+						"created_at"=> REQUEST_TIME,
+						"type"=> $info['type']
+			);
+			$check_exist = db_select('infor_user_github', 'icg')
+						->fields('icg', array('uid'))
+						->condition('uid', $user_id, '=')
+						->execute()
+						->fetchAssoc();
+			if($check_exist) {
+				$login = "";
+				$avatar_url = "";
+				$name = "";
+				$url = "";
+				$blog = "";
+				$company = "";
+				$location = "";
+				$bio = "";
+				$html_url = "";
+				if ($info['login'] != $check_exist['login']) {
+					$login = $info['login'];
+				}
+				if ($info['avatar_url'] != $check_exist['avatar_url']) {
+					$avatar_url = $info['avatar_url'];
+				}
+				if ($info['name'] != $check_exist['name']) {
+					$name = $info['name'];
+				}
+				if ($info['url'] != $check_exist['url']) {
+					$url = $info['url'];
+				}
+				if ($info['blog'] != $check_exist['blog']) {
+					$blog = $info['blog'];
+				}
+				if ($info['company'] != $check_exist['company']) {
+					$company = $info['company'];
+				}
+				if ($info['location'] != $check_exist['location']) {
+					$location = $info['location'];
+				}
+				if ($info['bio'] != $check_exist['bio']) {
+					$bio = $info['bio'];
+				}
+				if ($info['html_url'] != $check_exist['html_url']) {
+					$html_url = $info['html_url'];
+				}
+				db_update('infor_user_github')
+							->fields(array(
+							'login' => $login,
+							'avatar_url' => $avatar_url,
+							'url' => $url,
+							'name' => $name,
+							'blog' => $blog,
+							'company' => $company,
+							'location' => $location,
+							'bio' => $bio,
+							'html_url' => $html_url
+							))
+							->condition('uid', $user_id, '=')
+							->execute();
+			} else {
+				$infor_user_github = db_insert('infor_user_github') // Table name no longer needs {}
+				->fields($data)
+				->execute();
+			}
+			//get activity of user github
+			$activity = $api->get('users/'.$info['login'].'/events')->send()->json();
+			foreach ($activity as $key=>$value) {
+				if ($value['type'] == 'PushEvent') {
+					foreach ($value['payload']['commits'] as $row) {
+						// if ($row['author']['name'] == $info['login']) {
+							 $html .= "<tr>";
+							 $html .= "	<td>".$value['repo']['name']."</td>";
+							 $html .= "	<td>".$row['author']['name']."</td>";
+							 $html .= "	<td>".$row['author']['email']."</td>";
+							 $html .= "	<td>".$row['message']."</td>";
+							 $html .= "</tr>";
+						// }
+					}
+				}
+			}
+		$html .= "</table>";
+	  }
   }
-  $block = array();
-  $block['content'] = $html;
-  return $block;
+  return $html;
 }
  
 //create cron job
