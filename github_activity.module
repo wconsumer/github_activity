@@ -315,21 +315,115 @@ function github_activity_block_info() {
 }
 function _show_statictis_activity() {
 	$html = "";
-	drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css');
+	$type='day';
+	if (isset($_GET['type'])) {
+		$type=$_GET['type'];
+	}
+	drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css','theme');
 	if (isset($_GET['list_repository'])) {
 		$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
 		$api = Wconsumer::$github->api($user->uid, $scopes);
 		$list_repository = $api->get('/repos/'.$_GET['list_repository'].'/commits')->send()->json();
-		// echo "<pre>";
-		// print_r($list_repository);
-		// echo "</pre>";
+		$path = $GLOBALS['base_url'].'/activity/show?list_repository='.$_GET['list_repository'].'&type=';
 		$html .= "<b>Activity</b>";
 		$html .= "<ul class='activity_github'>";
-		$html .= "	<li>Day</li>";
-		$html .= "	<li>Week</li>";
-		$html .= "	<li>Month</li>";
+		$html .= "	<li><a href='".$path.'day'."'>Day</a></li>";
+		$html .= "	<li><a href='".$path.'week'."'>Week</a></li>";
+		$html .= "	<li><a href='".$path.'month'."'>Month</a></li>";
 		$html .= "	<div class='clear_both'></div>";
 		$html .= "</ul>";
+		
+		$list_activity_day = array();
+		$list_activity_week = array();
+		$list_activity_month = array();
+		
+		foreach ($list_repository as $key=>$value) {
+			$path_date = str_replace("https://api.github.com", "" ,$value['url']);
+			$date_created = $api->get($path_date)->send()->json();
+			$day = date('d', strtotime($date_created['commit']['committer']['date']));
+			$week = date('W', strtotime($date_created['commit']['committer']['date']));
+			$month = date('m', strtotime($date_created['commit']['committer']['date']));
+			$year = date('y', strtotime($date_created['commit']['committer']['date']));
+			$list_activity_day[] = $day;
+			$list_activity_week[] = $week;
+			$list_activity_month[] = $month;
+			array_push($list_repository[$key], array('day'=>$day, 'week'=>$week, 'month'=>$month, 'year'=>$year));
+		}
+		if ($type == 'day') {
+			$list_activity_day = array_unique($list_activity_day);
+			//show list activity for day
+			foreach ($list_activity_day as $day) {
+				$flag = 0;
+				foreach ($list_repository as $key=>$value) {
+					if ($value[0]['day'] == $day) {
+						if ($flag == 0) {
+							$html .= "<b>Day: ".$day."/".$month."/".$year."</b>";
+						}
+						$html .= "<div class='show_activity'>";
+						$html .= "	<div class='left_activity'>";
+						$html .= "		<img src='".$value['committer']['avatar_url']."' width='50px'/>";
+						$html .= "	</div>";
+						$html .= "	<div class='right_activity'>";
+						$html .= "		<p>author: ".$value['commit']['committer']['name']."</p>";
+						$html .= "		<p>message: ".$value['commit']['message']."</p>";
+						$html .= "	</div>";
+						$html .= "	<div class='clear_both'></div>";
+						$html .= "</div>";
+						$flag = 1;
+					}
+				}
+			}		
+		}
+		//show list activity for week
+		if ($type == 'week') {
+			$list_activity_week = array_unique($list_activity_week);
+			foreach ($list_activity_week as $week) {
+				$flag = 0;
+				foreach ($list_repository as $key=>$value) {
+					if ($value[0]['week'] == $week) {
+						if ($flag == 0) {
+							$html .= "<b>Week: ".$week."/".$year."</b>";
+						}
+						$html .= "<div class='show_activity'>";
+						$html .= "	<div class='left_activity'>";
+						$html .= "		<img src='".$value['committer']['avatar_url']."' width='50px'/>";
+						$html .= "	</div>";
+						$html .= "	<div class='right_activity'>";
+						$html .= "		<p>author: ".$value['commit']['committer']['name']."</p>";
+						$html .= "		<p>message: ".$value['commit']['message']."</p>";
+						$html .= "	</div>";
+						$html .= "	<div class='clear_both'></div>";
+						$html .= "</div>";
+						$flag = 1;
+					}
+				}
+			}
+		}
+		//show list activity for month
+		if ($type == 'month') {
+			$list_activity_month = array_unique($list_activity_month);
+			foreach ($list_activity_month as $month) {
+				$flag = 0;
+				foreach ($list_repository as $key=>$value) {
+					if ($value[0]['month'] == $month) {
+						if ($flag == 0) {
+							$html .= "<b>Month: ".$month."/".$year."</b>";
+						}
+						$html .= "<div class='show_activity'>";
+						$html .= "	<div class='left_activity'>";
+						$html .= "		<img src='".$value['committer']['avatar_url']."' width='50px'/>";
+						$html .= "	</div>";
+						$html .= "	<div class='right_activity'>";
+						$html .= "		<p>author: ".$value['commit']['committer']['name']."</p>";
+						$html .= "		<p>message: ".$value['commit']['message']."</p>";
+						$html .= "	</div>";
+						$html .= "	<div class='clear_both'></div>";
+						$html .= "</div>";
+						$flag = 1;
+					}
+				}
+			}
+		}
 	}
 	return $html;
 }
@@ -349,7 +443,6 @@ function github_activity_block_view($delta = '') {
 				$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
 				$api = Wconsumer::$github->api($user->uid, $scopes);
 				$list_repository = $api->get('/user/repos')->send()->json();
-				// debug($list_repository);
 				$html = "<form id='get_activity_repository' action='".$GLOBALS['base_url']."/activity/show'>";
 				$html .= "<select id='list_repository' name='list_repository'>";
 				$html .= "<option value='0' selected>Select</option>";
