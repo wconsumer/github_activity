@@ -1,0 +1,17 @@
+ul.activity_github li {
+	float: left;
+	border: 1px solid #DDDDDD;
+	padding: 15px;
+	list-style-type: none;
+}
+.clear_both {
+	clear: both;
+}
+.show_activity .left_activity {
+	float: left;
+	width: 5%;
+}
+.show_activity .right_activity {
+	float: right;
+	width: 92%;
+}
