@@ -15,7 +15,12 @@ function github_activity_menu() {
     'page callback' => '_oauth_github_activity',
     'access callback' => TRUE,
   );
-
+  
+  $items['activity/show'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_show_statictis_activity',
+    'access callback' => TRUE,
+  );
   return $items;
 }
 function github_activity_form($form, &$form_state) {
@@ -77,6 +82,7 @@ function _activity_user() {
 		$html .= "		<th>Name</th>";
 		$html .= "		<th>Email</th>";
 		$html .= "		<th>Message</th>";
+		$html .= "		<th>Created</th>";
 		$html .= "</tr>";
 		$list_user = db_select('infor_user_github', 'iug')
 					->fields('iug', array('uid','login'))
@@ -89,12 +95,15 @@ function _activity_user() {
 			foreach ($activity as $key=>$value) {
 				if ($value['type'] == 'PushEvent') {
 					foreach ($value['payload']['commits'] as $row) {
+						$get_created_commit = $api->get('repos/'.$value['repo']['name'].'/commits/'.$row['sha'])->send()->json();
+						$date = $get_created_commit['commit']['committer']['date'];
 						// if ($row['author']['name'] == $info['login']) {
 							 $html .= "<tr>";
 							 $html .= "	<td>".$value['repo']['name']."</td>";
 							 $html .= "	<td>".$row['author']['name']."</td>";
 							 $html .= "	<td>".$row['author']['email']."</td>";
 							 $html .= "	<td>".$row['message']."</td>";
+							 $html .= "	<td>".$date."</td>";
 							 $html .= "</tr>";
 						// }
 					}
@@ -113,6 +122,7 @@ function _activity_user() {
 			$html .= "		<th>Name</th>";
 			$html .= "		<th>Email</th>";
 			$html .= "		<th>Message</th>";
+			$html .= "		<th>Created</th>";
 			$html .= "</tr>";
 			$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
 			$api = Wconsumer::$github->api($user->uid, $scopes);
@@ -209,12 +219,15 @@ function _activity_user() {
 			foreach ($activity as $key=>$value) {
 				if ($value['type'] == 'PushEvent') {
 					foreach ($value['payload']['commits'] as $row) {
+							// $get_created_commit = $api->get('repos/'.$value['repo']['name'].'/commits/'.$row['sha'])->send()->json();
+							// $date = $get_created_commit['commit']['committer']['date'];
 						// if ($row['author']['name'] == $info['login']) {
 							 $html .= "<tr>";
 							 $html .= "	<td>".$value['repo']['name']."</td>";
 							 $html .= "	<td>".$row['author']['name']."</td>";
 							 $html .= "	<td>".$row['author']['email']."</td>";
 							 $html .= "	<td>".$row['message']."</td>";
+							 $html .= "	<td>".$date."</td>";
 							 $html .= "</tr>";
 						// }
 					}
@@ -292,4 +305,65 @@ function github_activity_form_alter(&$form, &$form_state, $form_id) {
 		}
 		$form['accounts']['#options'] = $list_user;
 	}
+}
+function github_activity_block_info() {
+  $blocks['list_repository'] = array(
+    'info' => t('List Repository')
+  );
+
+  return $blocks;
+}
+function _show_statictis_activity() {
+	$html = "";
+	drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css');
+	if (isset($_GET['list_repository'])) {
+		$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+		$api = Wconsumer::$github->api($user->uid, $scopes);
+		$list_repository = $api->get('/repos/'.$_GET['list_repository'].'/commits')->send()->json();
+		// echo "<pre>";
+		// print_r($list_repository);
+		// echo "</pre>";
+		$html .= "<b>Activity</b>";
+		$html .= "<ul class='activity_github'>";
+		$html .= "	<li>Day</li>";
+		$html .= "	<li>Week</li>";
+		$html .= "	<li>Month</li>";
+		$html .= "	<div class='clear_both'></div>";
+		$html .= "</ul>";
+	}
+	return $html;
+}
+function github_activity_block_view($delta = '') {
+  $block = array();
+
+  switch ($delta) {
+    case 'list_repository':
+		$credentials = Wconsumer::$github->getCredentials($user->uid);
+		global $user;
+		if ($user->uid != 0) {
+			if (!$credentials) {
+			  $html = "User not yet authorized access to his GitHub service profile. Click button:";
+			  $html .= render(drupal_get_form('github_activity_form'));
+			} else {
+				$block['subject'] = t('List Repository');
+				$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+				$api = Wconsumer::$github->api($user->uid, $scopes);
+				$list_repository = $api->get('/user/repos')->send()->json();
+				// debug($list_repository);
+				$html = "<form id='get_activity_repository' action='".$GLOBALS['base_url']."/activity/show'>";
+				$html .= "<select id='list_repository' name='list_repository'>";
+				$html .= "<option value='0' selected>Select</option>";
+				foreach($list_repository as $value) {
+					$html .= "<option value='".$value['full_name']."'>".$value['name']."</option>";
+				}
+				$html .= "</select>";
+				$html .= "<br/>";
+				$html .= "<input type='submit' value='Submit' />";
+				$html .= "</form>";
+				$block['content'] = $html;
+			}
+		}
+		break;
+  }
+  return $block;
 }
