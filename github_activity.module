@@ -1,6 +1,7 @@
 <?php
 use Drupal\wconsumer\Wconsumer;
 use Drupal\wconsumer\Service\Exception;
+<<<<<<< HEAD
 use Drupal\wconsumer\Authentication\Credentials;
 use Drupal\wconsumer\Service\Base;
 
