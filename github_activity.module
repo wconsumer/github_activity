@@ -343,7 +343,7 @@ function _show_statictis_activity() {
 			$day = date('d', strtotime($date_created['commit']['committer']['date']));
 			$week = date('W', strtotime($date_created['commit']['committer']['date']));
 			$month = date('m', strtotime($date_created['commit']['committer']['date']));
-			$year = date('y', strtotime($date_created['commit']['committer']['date']));
+			$year = date('Y', strtotime($date_created['commit']['committer']['date']));
 			$list_activity_day[] = $day;
 			$list_activity_week[] = $week;
 			$list_activity_month[] = $month;
@@ -357,7 +357,7 @@ function _show_statictis_activity() {
 				foreach ($list_repository as $key=>$value) {
 					if ($value[0]['day'] == $day) {
 						if ($flag == 0) {
-							$html .= "<b>Day: ".$day."/".$month."/".$year."</b>";
+							$html .= "<h3 class='commit-group-heading'>Day: ".$day."/".$month."/".$year."</h3>";
 						}
 						$html .= "<div class='show_activity'>";
 						$html .= "	<div class='left_activity'>";
@@ -382,7 +382,7 @@ function _show_statictis_activity() {
 				foreach ($list_repository as $key=>$value) {
 					if ($value[0]['week'] == $week) {
 						if ($flag == 0) {
-							$html .= "<b>Week: ".$week."/".$year."</b>";
+							$html .= "<h3 class='commit-group-heading'>Week: ".$week."/".$year."</h3>";
 						}
 						$html .= "<div class='show_activity'>";
 						$html .= "	<div class='left_activity'>";
@@ -407,7 +407,7 @@ function _show_statictis_activity() {
 				foreach ($list_repository as $key=>$value) {
 					if ($value[0]['month'] == $month) {
 						if ($flag == 0) {
-							$html .= "<b>Month: ".$month."/".$year."</b>";
+							$html .= "<h3 class='commit-group-heading'>Month: ".$month."/".$year."</h3>";
 						}
 						$html .= "<div class='show_activity'>";
 						$html .= "	<div class='left_activity'>";
