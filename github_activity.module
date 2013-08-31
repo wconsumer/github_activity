@@ -15,12 +15,16 @@ function github_activity_menu() {
     'page callback' => '_oauth_github_activity',
     'access callback' => TRUE,
   );
-  
   $items['activity/show'] = array(
     'type' => MENU_CALLBACK,
     'page callback' => '_show_statictis_activity',
     'access callback' => TRUE,
-  );
+  );   
+  $items['activity/statictis'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_show_star_statictis_activity',
+    'access callback' => TRUE,
+  );  
   return $items;
 }
 function github_activity_form($form, &$form_state) {
@@ -319,17 +323,20 @@ function _show_statictis_activity() {
 	if (isset($_GET['type'])) {
 		$type=$_GET['type'];
 	}
+	set_time_limit(1000);     
 	drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css','theme');
-	if (isset($_GET['list_repository'])) {
+	if (!empty($_GET['list_repository'])) {
 		$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
 		$api = Wconsumer::$github->api($user->uid, $scopes);
 		$list_repository = $api->get('/repos/'.$_GET['list_repository'].'/commits')->send()->json();
 		$path = $GLOBALS['base_url'].'/activity/show?list_repository='.$_GET['list_repository'].'&type=';
+		$path_statictis = $GLOBALS['base_url'].'/activity/statictis?list_repository='.$_GET['list_repository'];
+		$html .= "<a href='{$path_statictis}'>Show Statictis</a>";
 		$html .= "<div class='activity_user'>";
 		$html .= "<ul class='activity_github'>";
 		$html .= "	<li><a href='".$path.'day'."'>Day</a></li>";
 		$html .= "	<li><a href='".$path.'week'."'>Week</a></li>";
-		$html .= "	<li><a href='".$path.'month'."'>Month</a></li>";
+		$html .= "	<li class='last_child'><a href='".$path.'month'."'>Month</a></li>";
 		$html .= "	<div class='clear_both'></div>";
 		$html .= "</ul>";
 		
@@ -425,6 +432,8 @@ function _show_statictis_activity() {
 			}
 		}
 		$html .= "</div>";
+	} else {
+		drupal_goto($GLOBALS['base_url']);
 	}
 	return $html;
 }
@@ -460,4 +469,91 @@ function github_activity_block_view($delta = '') {
 		break;
   }
   return $block;
+}
+function _show_star_statictis_activity() {
+	if (isset($_GET['list_repository'])) {
+		set_time_limit(1000);     
+		drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css','theme');
+		drupal_add_css(drupal_get_path('module', 'github_activity') . '/jquery.jqplot.min.css','theme');
+		drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jquery.min.js');
+		drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jquery.jqplot.min.js');
+		drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.barRenderer.min.js');
+		drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.categoryAxisRenderer.min.js');
+		drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.pointLabels.min.js');
+		$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+		$api = Wconsumer::$github->api($user->uid, $scopes);
+		$statictis = $api->get('/repos/'.$_GET['list_repository'].'/stats/contributors')->send()->json();
+		$item = 1;
+		$html .= "<div class='list_user_group'>";
+		foreach ($statictis as $value) {
+			$html .= "	<div class='group'>";
+			$html .= "		<div class='infor_user'>";
+			$html .= "			<img src='".$value['author']['avatar_url']."' width='80px'/>";
+			$html .= "			<p>Name: ".$value['author']['login']."</p>";
+			$html .= "		</div>";
+			$html .= "		<div class='contributors_user'>";
+			$html .= "		<p>Total: ".$value['total']."</p>";
+			$number_week = count($value['weeks']);
+			$html .= "<div id='chart".$item."' style='width:100%; height:auto;'></div>";
+			$html .= "<script>$(document).ready(function(){";
+			$list_s = "";
+			$list_a = "";
+			$list_d = "";
+			$list_c = "";
+			$list_w = "";
+
+			foreach ($value['weeks'] as $row) {
+				if ($row['a'] > 0 || $row['d'] > 0 || $row['c'] >0) {
+					// $html .= "			<p>Week: ".date('W', $row['w']).'/'.date('m', $row['w']).'/'.date('Y', $row['w'])."</p>";
+					// $html .= "			<p>Number of additions: ".$row['a']."</p>";
+					// $html .= "			<p>Number of deletions: ".$row['d']."</p>";
+					// $html .= "			<p>Number of commits: ".$row['c']."</p>";
+					$list_a .= $row['a'].", ";
+					$list_d .= $row['d'].", ";
+					$list_c .= $row['c'].", ";
+					$list_w .= date('W', $row['w']).", ";
+				}
+			}
+			$list_a = substr($list_a, 0, strlen($list_a) - 2);
+			$list_d = substr($list_d, 0, strlen($list_d) - 2);
+			$list_c = substr($list_c, 0, strlen($list_c) - 2);
+			$list_w = substr($list_w, 0, strlen($list_w) - 2);
+			
+			$html .= "var s1 = [".$list_a."];";
+			$html .= "var s2 = [".$list_d."];";
+			$html .= "var s3 = [".$list_c."];";
+			$html .= "var ticks = [{$list_w}];";
+			$html .= "plot3 = $.jqplot('chart{$item}', [s1, s2 , s3], {
+									animate: !$.jqplot.use_excanvas,
+									seriesDefaults:{
+									  renderer:$.jqplot.BarRenderer,
+									  pointLabels: {show: true}
+									},
+									axes: {
+									  xaxis: {
+										  renderer: $.jqplot.CategoryAxisRenderer,
+										  ticks: ticks
+									  }
+									},
+									series:[
+										{label:'Additions'},
+										{label:'Deletions'},
+										{label:'Commits'}
+									],
+									legend: {
+									  show: true,
+									  location: 'e',
+									  placement: 'outside'
+									},      
+									highlighter: { show: false }     
+								  });
+								});</script>";
+			$item++;
+			$html .= "		</div>";
+			$html .= "		<div class='clear_both'></div>";
+			$html .= "	</div>";
+		}
+		$html .= "</div>";
+	}
+	return $html;
 }

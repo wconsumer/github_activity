@@ -5,6 +5,10 @@ ul.activity_github li {
 	padding: 15px;
 	list-style-type: none;
 	width: 30%;
+	text-align: center;
+}
+ul.activity_github li.last_child {
+	border-right: 0px solid #DDDDDD;
 }
 .clear_both {
 	clear: both;
@@ -20,11 +24,13 @@ ul.activity_github li {
 .activity_user {
 	width: 100%;
 	border: 1px solid #DDDDDD;
+	border-radius: 5px 5px 0 0;
 }
 .region-content ul.activity_github {
     margin: 0;
     padding: 0;
     width: 100%;
+	background-color: #FFECD3;
 }
 h3.commit-group-heading {
     background: none repeat scroll 0 0 #E6F1F6;
@@ -43,4 +49,20 @@ h3.commit-group-heading {
 }
 .show_activity:hover{
    background: #FCFCE2;
+}
+.list_user_group .infor_user {
+	float: left;
+	width: 20%;
+}
+.list_user_group .contributors_user {
+	float: right;
+	width: 70%;
+}
+.list_user_group .group {
+	padding: 15px;
+	border: 1px solid #DDDDDD;
+	margin-bottom: 10px;
+}
+table.jqplot-table-legend {
+	width: auto;
 }
