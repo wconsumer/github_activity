@@ -1,7 +1,6 @@
 <?php
 use Drupal\wconsumer\Wconsumer;
 use Drupal\wconsumer\Service\Exception;
-<<<<<<< HEAD
 use Drupal\wconsumer\Authentication\Credentials;
 use Drupal\wconsumer\Service\Base;
 
@@ -326,7 +325,7 @@ function _show_statictis_activity() {
 		$api = Wconsumer::$github->api($user->uid, $scopes);
 		$list_repository = $api->get('/repos/'.$_GET['list_repository'].'/commits')->send()->json();
 		$path = $GLOBALS['base_url'].'/activity/show?list_repository='.$_GET['list_repository'].'&type=';
-		$html .= "<b>Activity</b>";
+		$html .= "<div class='activity_user'>";
 		$html .= "<ul class='activity_github'>";
 		$html .= "	<li><a href='".$path.'day'."'>Day</a></li>";
 		$html .= "	<li><a href='".$path.'week'."'>Week</a></li>";
@@ -425,6 +424,7 @@ function _show_statictis_activity() {
 				}
 			}
 		}
+		$html .= "</div>";
 	}
 	return $html;
 }

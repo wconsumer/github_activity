@@ -1,8 +1,10 @@
 ul.activity_github li {
 	float: left;
-	border: 1px solid #DDDDDD;
+	border-right: 1px solid #DDDDDD;
+	border-bottom: 1px solid #DDDDDD;
 	padding: 15px;
 	list-style-type: none;
+	width: 30%;
 }
 .clear_both {
 	clear: both;
@@ -14,4 +16,17 @@ ul.activity_github li {
 .show_activity .right_activity {
 	float: right;
 	width: 92%;
+}
+.activity_user {
+	width: 100%;
+	border: 1px solid #DDDDDD;
+}
+.region-content ul.activity_github {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.show_activity {
+    padding: 15px;
 }
