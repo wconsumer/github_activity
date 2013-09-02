@@ -314,6 +314,10 @@ function github_activity_block_info() {
   $blocks['list_repository'] = array(
     'info' => t('List Repository')
   );
+  
+  $blocks['calendar_event'] = array(
+    'info' => t('Calendar Event')
+  );
 
   return $blocks;
 }
@@ -463,8 +467,50 @@ function github_activity_block_view($delta = '') {
 				$html .= "<br/>";
 				$html .= "<input type='submit' value='Submit' />";
 				$html .= "</form>";
-				$block['content'] = $html;
 			}
+			$block['content'] = $html;
+		}
+		break;
+	case 'calendar_event':
+		$credentials = Wconsumer::$github->getCredentials($user->uid);
+		global $user;
+		if ($user->uid != 0) {
+			if (!$credentials) {
+			  $html = "User not yet authorized access to his GitHub service profile. Click button:";
+			  $html .= render(drupal_get_form('github_activity_form'));
+			} else {
+				drupal_add_css(drupal_get_path('module', 'github_activity') . '/css/paragridma.css','theme');
+				drupal_add_css(drupal_get_path('module', 'github_activity') . '/css/eventCalendar.css','theme');
+				drupal_add_css(drupal_get_path('module', 'github_activity') . '/css/eventCalendar_theme_responsive.css','theme');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jquery.min.js');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jquery.eventCalendar.js');
+				$block['subject'] = t('Calendar Event');
+				$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+				$api = Wconsumer::$github->api($user->uid, $scopes);
+				$info_github_user = db_select('infor_user_github', 'icg')
+								->fields('icg', array('uid','login'))
+								->condition('uid', $user->uid, '=')
+								->execute()
+								->fetchAssoc();
+				$data_event = array();
+				$list_event = $api->get('/users/'.$info_github_user['login'].'/events')->send()->json();
+
+				foreach ($list_event as $value) {
+					$data_event[] = array('date'=>date('Y-m-d H:i:s', strtotime($value['created_at'])), 'type'=> $value['type'], 'title'=>$value['type']);
+					// debug($value['created_at']);
+				}
+				// debug($data_event);
+				$json_data = json_encode($data_event);
+				$html .= "<div id='eventCalendarHumanDate'></div>";
+				$html .= "<script>$(document).ready(function(){ ";
+				$html .= '			var eventsInline = '.$json_data.';';
+				$html .= "$('#eventCalendarHumanDate').eventCalendar({";
+				$html .= "			jsonData: eventsInline,";
+				$html .= "			jsonDateFormat: 'human'";
+				$html .= "});";
+				$html .= "});</script>";
+			}
+			$block['content'] = $html;
 		}
 		break;
   }
@@ -504,10 +550,6 @@ function _show_star_statictis_activity() {
 
 			foreach ($value['weeks'] as $row) {
 				if ($row['a'] > 0 || $row['d'] > 0 || $row['c'] >0) {
-					// $html .= "			<p>Week: ".date('W', $row['w']).'/'.date('m', $row['w']).'/'.date('Y', $row['w'])."</p>";
-					// $html .= "			<p>Number of additions: ".$row['a']."</p>";
-					// $html .= "			<p>Number of deletions: ".$row['d']."</p>";
-					// $html .= "			<p>Number of commits: ".$row['c']."</p>";
 					$list_a .= $row['a'].", ";
 					$list_d .= $row['d'].", ";
 					$list_c .= $row['c'].", ";
