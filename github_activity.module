@@ -1,0 +1,765 @@
+<?php
+use Drupal\wconsumer\Wconsumer;
+use Drupal\wconsumer\Service\Exception;
+use Drupal\wconsumer\Authentication\Credentials;
+use Drupal\wconsumer\Service\Base;
+use Guzzle\Http\Client;
+
+function github_activity_menu() {
+  $items['oauth/github'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_oauth_github_activity',
+    'access callback' => TRUE,
+  );
+  $items['activity/show'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_show_statictis_activity',
+    'access callback' => TRUE,
+  );  
+  $items['activity/user_group'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_show_user_groups_activity',
+    'access callback' => TRUE,
+  );   
+  $items['activity/statictis'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_show_star_statictis_activity',
+    'access callback' => TRUE,
+  );    
+  $items['node/%/members'] = array(
+	'title' => 'Members',
+    'type' => MENU_LOCAL_TASK,
+    'page callback' => '_show_activity_of_user_github',
+    'access callback' => '_access_check_member',
+	'weight'=>1
+  );  
+  $items['active_member_user'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_active_member_user',
+    'access callback' => TRUE,
+  );  
+  $items['create_repository'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => '_create_repository',
+    'access callback' => TRUE,
+  );  
+  return $items;
+}
+function _access_check_member() {
+	global $user;
+	if ($user->uid != 0) {
+		return $user->uid;
+	}
+}
+function github_activity_form($form, &$form_state) {
+ $form = array (
+  '#action' => $GLOBALS['base_url'].'/oauth/github', //The action attribute of the HTML form tag
+  'submit' => array ( //We define a simple submit button
+   '#type' => 'submit',
+   '#value' => t('Authenticate Github'),
+   '#name' => t('github'),
+  ),
+ );
+
+ return $form;
+}
+function wconsumer_activity_auth($service_name) {
+  $service = Wconsumer::instance()->services->get($service_name);
+  if (!isset($service)) {
+    drupal_set_message(t("{$service_name} service is not currently available"));
+    drupal_goto('<front>');
+  }
+
+  if (!$service->isActive()) {
+    drupal_set_message(t("'{$service->getName()}' service is not currently active"));
+    drupal_goto('<front>');
+  }
+
+  global $user;
+  $scopes = array_filter(module_invoke_all('wconsumer_define_required_scopes', $service));
+  $service->authentication->authenticate($user, $scopes);
+}
+function _oauth_github_activity() {
+	global $user;
+
+	$serviceName = 'github';
+	/** @var \Drupal\wconsumer\Service\Base $service */
+	$service = Wconsumer::instance()->services->{$serviceName};
+	// Either authenticate them or log them out
+	if ($service->checkAuthentication('user', $user->uid)) {
+		$service->authentication->logout($user);
+		drupal_set_message(t('Your '.$serviceName.' service has been revoked.'));
+	}
+	else {
+		wconsumer_activity_auth($serviceName);
+	}
+}
+function _show_statictis_activity() {
+	$html = "";
+	$type='day';
+	if (isset($_GET['type'])) {
+		$type=$_GET['type'];
+	}
+	set_time_limit(1000);     
+	drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css','theme');
+	if (!empty($_GET['list_repository'])) {
+		if (isset($_GET['user_id'])) {
+			$user_id = $_GET['user_id'];
+			$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+			$api = Wconsumer::$github->api($user_id, $scopes);
+			$list_repository = $api->get('/repos/'.$_GET['list_repository'].'/commits')->send()->json();
+			$path = $GLOBALS['base_url'].'/activity/show?list_repository='.$_GET['list_repository'].'&user_id='.$user_id.'&type=';
+			$path_statictis = $GLOBALS['base_url'].'/activity/statictis?list_repository='.$_GET['list_repository']."&user_id=".$user_id;
+			$html .= "<a href='{$path_statictis}'>Show Statictis</a>";
+			$html .= "<div class='activity_user'>";
+			$html .= "<ul class='activity_github'>";
+			$html .= "	<li><a href='".$path.'day'."'>Day</a></li>";
+			$html .= "	<li><a href='".$path.'week'."'>Week</a></li>";
+			$html .= "	<li class='last_child'><a href='".$path.'month'."'>Month</a></li>";
+			$html .= "	<div class='clear_both'></div>";
+			$html .= "</ul>";
+			
+			$list_activity_day = array();
+			$list_activity_week = array();
+			$list_activity_month = array();
+			
+			foreach ($list_repository as $key=>$value) {
+				$path_date = str_replace("https://api.github.com", "" ,$value['url']);
+				$date_created = $api->get($path_date)->send()->json();
+				$day = date('d', strtotime($date_created['commit']['committer']['date']));
+				$week = date('W', strtotime($date_created['commit']['committer']['date']));
+				$month = date('m', strtotime($date_created['commit']['committer']['date']));
+				$year = date('Y', strtotime($date_created['commit']['committer']['date']));
+				$list_activity_day[] = $day;
+				$list_activity_week[] = $week;
+				$list_activity_month[] = $month;
+				array_push($list_repository[$key], array('day'=>$day, 'week'=>$week, 'month'=>$month, 'year'=>$year));
+			}
+			if ($type == 'day') {
+				$list_activity_day = array_unique($list_activity_day);
+				//show list activity for day
+				foreach ($list_activity_day as $day) {
+					$flag = 0;
+					foreach ($list_repository as $key=>$value) {
+						if ($value[0]['day'] == $day) {
+							if ($flag == 0) {
+								$html .= "<h3 class='commit-group-heading'>Day: ".$day."/".$month."/".$year."</h3>";
+							}
+							$html .= "<div class='show_activity'>";
+							$html .= "	<div class='left_activity'>";
+							$html .= "		<img src='".$value['committer']['avatar_url']."' width='50px'/>";
+							$html .= "	</div>";
+							$html .= "	<div class='right_activity'>";
+							$html .= "		<p>author: ".$value['commit']['committer']['name']."</p>";
+							$html .= "		<p>message: ".$value['commit']['message']."</p>";
+							$html .= "	</div>";
+							$html .= "	<div class='clear_both'></div>";
+							$html .= "</div>";
+							$flag = 1;
+						}
+					}
+				}		
+			}
+			//show list activity for week
+			if ($type == 'week') {
+				$list_activity_week = array_unique($list_activity_week);
+				foreach ($list_activity_week as $week) {
+					$flag = 0;
+					foreach ($list_repository as $key=>$value) {
+						if ($value[0]['week'] == $week) {
+							if ($flag == 0) {
+								$html .= "<h3 class='commit-group-heading'>Week: ".$week."/".$year."</h3>";
+							}
+							$html .= "<div class='show_activity'>";
+							$html .= "	<div class='left_activity'>";
+							$html .= "		<img src='".$value['committer']['avatar_url']."' width='50px'/>";
+							$html .= "	</div>";
+							$html .= "	<div class='right_activity'>";
+							$html .= "		<p>author: ".$value['commit']['committer']['name']."</p>";
+							$html .= "		<p>message: ".$value['commit']['message']."</p>";
+							$html .= "	</div>";
+							$html .= "	<div class='clear_both'></div>";
+							$html .= "</div>";
+							$flag = 1;
+						}
+					}
+				}
+			}
+			//show list activity for month
+			if ($type == 'month') {
+				$list_activity_month = array_unique($list_activity_month);
+				foreach ($list_activity_month as $month) {
+					$flag = 0;
+					foreach ($list_repository as $key=>$value) {
+						if ($value[0]['month'] == $month) {
+							if ($flag == 0) {
+								$html .= "<h3 class='commit-group-heading'>Month: ".$month."/".$year."</h3>";
+							}
+							$html .= "<div class='show_activity'>";
+							$html .= "	<div class='left_activity'>";
+							$html .= "		<img src='".$value['committer']['avatar_url']."' width='50px'/>";
+							$html .= "	</div>";
+							$html .= "	<div class='right_activity'>";
+							$html .= "		<p>author: ".$value['commit']['committer']['name']."</p>";
+							$html .= "		<p>message: ".$value['commit']['message']."</p>";
+							$html .= "	</div>";
+							$html .= "	<div class='clear_both'></div>";
+							$html .= "</div>";
+							$flag = 1;
+						}
+					}
+				}
+			}
+			$html .= "</div>";
+		}
+	} else {
+		drupal_goto($GLOBALS['base_url']);
+	}
+	return $html;
+}
+
+function _show_star_statictis_activity() {
+	global $user;
+	$html ="";
+	if (isset($_GET['list_repository'])) {
+		if (isset($_GET['user_id'])) {
+			$user_id = $_GET['user_id'];
+			set_time_limit(1000);     
+			drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css','theme');
+			drupal_add_css(drupal_get_path('module', 'github_activity') . '/jquery.jqplot.min.css','theme');
+			drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jquery.min.js');
+			drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jquery.jqplot.min.js');
+			drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.barRenderer.min.js');
+			drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.categoryAxisRenderer.min.js');
+			drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.pointLabels.min.js');
+			$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+			$api = Wconsumer::$github->api($user_id, $scopes);
+			$statictis = $api->get('/repos/'.$_GET['list_repository'].'/stats/contributors')->send()->json();
+			if (empty($statictis)) {
+				$html .= 'No activity for this repository';
+			} else {
+				$item = 1;
+				$html .= "<div class='list_user_group'>";
+				foreach ($statictis as $value) {
+					$html .= "	<div class='group'>";
+					$html .= "		<div class='infor_user'>";
+					$html .= "			<img src='".$value['author']['avatar_url']."' width='80px'/>";
+					$html .= "			<p>Name: ".$value['author']['login']."</p>";
+					$html .= "		</div>";
+					$html .= "		<div class='contributors_user'>";
+					$html .= "		<p>Total Commit: ".$value['total']."</p>";
+					$number_week = count($value['weeks']);
+					$html .= "<div id='chart".$item."' style='width:100%; height:auto;'></div>";
+					$html .= "<script>$(document).ready(function(){";
+					$list_s = "";
+					$list_a = "";
+					$list_d = "";
+					$list_c = "";
+					$list_w = "";
+
+					foreach ($value['weeks'] as $row) {
+						if ($row['a'] > 0 || $row['d'] > 0 || $row['c'] >0) {
+							$list_a .= $row['a'].", ";
+							$list_d .= $row['d'].", ";
+							$list_c .= $row['c'].", ";
+							$list_w .= "'week-".date('W', $row['w']).'-'.date('m', $row['w']).'-'.date('Y', $row['w'])."', ";
+						}
+					}
+					$list_a = substr($list_a, 0, strlen($list_a) - 2);
+					$list_d = substr($list_d, 0, strlen($list_d) - 2);
+					$list_c = substr($list_c, 0, strlen($list_c) - 2);
+					$list_w = substr($list_w, 0, strlen($list_w) - 2);
+					
+					$html .= "var s1 = [".$list_a."];";
+					$html .= "var s2 = [".$list_d."];";
+					$html .= "var s3 = [".$list_c."];";
+					$html .= "var ticks = [{$list_w}];";
+					$path_redirect = $GLOBALS['base_url']."/activity/show?list_repository=".$_GET['list_repository']."&user_id=".$user_id;
+					$html .= "plot3 = $.jqplot('chart{$item}', [s1, s2 , s3], {
+											captureRightClick: true,
+											seriesDefaults:{
+											  renderer:$.jqplot.BarRenderer,
+											  pointLabels: {show: true}
+											},
+											axes: {
+											  xaxis: {
+												  renderer: $.jqplot.CategoryAxisRenderer,
+												  ticks: ticks
+											  }
+											},
+											series:[
+												{label:'Additions'},
+												{label:'Deletions'},
+												{label:'Commits'}
+											],
+											legend: {
+											  show: true,
+											  location: 'e',
+											  placement: 'outside'
+											}   
+										  });
+						  $('#chart{$item}').bind('jqplotDataClick',
+							function (ev, seriesIndex, pointIndex, data) {
+							  window.location.href = '{$path_redirect}';
+							}
+						  ); 
+						});</script>";
+					$item++;
+					$html .= "		</div>";
+					$html .= "		<div class='clear_both'></div>";
+					$html .= "	</div>";
+				}
+				$html .= "</div>";
+			}
+		}
+	}
+	return $html;
+}
+// Sort the array returend by pushed_at time
+function compare_pushed_at($b, $a){
+    return strnatcmp($a['pushed_at'], $b['pushed_at']);
+}
+function _create_repository() {
+	global $user;
+	$html = "";
+	if (isset($_GET['key_hash']) && isset($_GET['mid'])) {
+		$result_key = db_select('message_hash_key', 'mhk')
+					->fields('mhk')
+					->condition('mid', $_GET['mid'], '=')
+					->condition('keyhash', $_GET['key_hash'], '=')
+					->execute()
+					->fetchAssoc();
+
+		if ($result_key) {
+			$credentials = Wconsumer::$github->getCredentials($user->uid);
+			if (!$credentials) {
+			  $html .= "User not yet authorized access to his GitHub service profile. Click button:";
+			  $html .= render(drupal_get_form('github_activity_form'));
+			} else {
+				$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+				$api = Wconsumer::$github->api($user->uid, $scopes);
+				$data_create_repo = json_encode(array(
+									  "name" => "mywebclass",
+									  "description" => "http://mywebclass.org",
+									  "homepage" => "http://mywebclass.org",
+									  "private" => false,
+									  "has_issues" => true,
+									  "has_wiki" => true,
+									  "has_downloads" => true,
+									  "auto_init" => true
+									));
+				$repo = $api->post('/user/repos', NULL, $data_create_repo)->send()->json();
+				if (!empty($repo['errors'])) {
+					$msg = $repo['errors'][0]['message'];
+					drupal_set_message($msg, $type = 'error');
+					drupal_goto($GLOBALS['base_url']);
+				} else {
+					$repository_name = $repo['name'];
+					$username = $repo['owner']['login'];
+					$node = node_load($result_key['nid']);
+					$info_user = $api->get('/user')->send()->json();
+
+					$data_string = json_encode(array(
+									"message" => "commit folder and readme",
+									"committer" => array(
+										"name" => $username,
+										"email" => $info_user['email']
+									),
+									"content" => base64_encode($node->body['und'][0]['value'])
+								));
+								
+					$path_sha_file = urlencode($node->title."/Readme.md");
+					$createFile = $api->put('/repos/'.urlencode($username).'/mywebclass/contents/'.$path_sha_file, NULL, $data_string)->send()->json();
+					
+					db_delete('message_hash_key')
+						->condition('mid', $_GET['mid'], '=')
+						->condition('keyhash', $_GET['key_hash'], '=')
+						->execute();
+					$msg = "Create Repository 'mywebclass' successful";
+					drupal_set_message($msg, $type = 'status');
+					drupal_goto($GLOBALS['base_url']);
+				}
+			}
+		} else {
+			$msg = "Key Hash was used";
+			drupal_set_message($msg, $type = 'error');
+			drupal_goto($GLOBALS['base_url']);
+		}
+	}
+	return $html;
+}
+function _active_member_user() {
+	if (isset($_GET['user_id']) && isset($_GET['group_id']) && isset($_GET['status'])) {
+		$status = $_GET['status'];
+		$user_id = $_GET['user_id'];
+		$group_id = $_GET['group_id'];
+		
+		if ($status == 0) {
+			db_delete('og_membership"')
+				  ->condition('etid', $user_id)
+				  ->condition('gid', $group_id)
+				  ->condition('entity_type', 'user')
+				  ->condition('state', 2)
+				  ->execute();
+			drupal_goto($GLOBALS['base_url'].'/node/'.$group_id.'/members');
+		}
+		if ($status == 1) {
+			db_update('og_membership') 
+				  ->fields(array(
+					'state' => 1,
+				  ))
+				  ->condition('etid', $user_id)
+				  ->condition('gid', $group_id)
+				  ->condition('entity_type', 'user')
+				  ->execute();
+			$key_hash = md5('mywebclass').uniqid();
+			global $user;
+			$mid = db_insert('pm_message') 
+					->fields(array(
+					  'author' => $user->uid,
+					  'subject' => "You have been accepted into the group",
+					  'body' => "",
+					  'format' => 'full_html',
+					  'timestamp' => time(),
+					  'has_tokens' => 0,
+					))
+					->execute();
+			$path = '"'.$GLOBALS['base_url'].'/create_repository?key_hash='.$key_hash.'&mid='.$mid.'"';
+			$string_popup = '"Are you sure want to create repository mywebclass!"';
+			$click_popup = "var r=confirm({$string_popup});if (r==true){window.location.href={$path}}";
+			$string_message = "<a href='javascript:void(0)' onclick='{$click_popup}'>Create Repository</a>";
+
+			db_update('pm_message') 
+				  ->fields(array(
+					'body' => $string_message,
+				  ))
+				  ->condition('mid', $mid)
+				  ->execute();
+			db_insert('message_hash_key') 
+					->fields(array(
+					  'mid' => $mid,
+					  'keyhash' => $key_hash,
+					  'nid' => $group_id
+					))
+					->execute();
+			db_insert('pm_index') 
+					->fields(array(
+					  'mid' => $mid,
+					  'thread_id' => $mid,
+					  'recipient' => $user_id,
+					  'is_new' => 0,
+					  'deleted' => 0,
+					  'type' => 'user'
+					))
+					->execute();
+			
+			drupal_goto($GLOBALS['base_url'].'/node/'.$group_id.'/members');
+		}
+	}
+}
+function grade_book_for_group($gid) {
+	$result = db_select('og_membership', 'om')
+					->fields('om', array('etid','state'))
+					->condition('entity_type', 'user', '=')
+					->condition('gid', $gid, '=')
+					->condition('state', 1, '=')
+					->execute();
+	$list_students_group = array();
+	while ($row = $result->fetchAssoc()) {
+		$user_info = user_load($row['etid']);
+		foreach ($user_info->roles as $value) {
+			if ($value == 'student') {
+				$list_students_group[] = $row['etid'];
+			}
+		}
+	}
+	$gradebook = taxonomy_term_load(19);
+	  global $user;
+	  $account = user_load($user->uid);
+	  $assignments = array();
+	  $student_grades = array();
+	  $assignment_order = array();
+	  $students = array();
+	  $default_order = variable_get('gradebook_page_order-' . $gradebook->tid, 'category');
+	  $order = isset($_GET['order']) ? $_GET['order'] : $default_order;
+	  $default_sort = variable_get('gradebook_page_sort-' . $gradebook->tid, 'asc');
+	  $sort = isset($_GET['sort']) ? (($_GET['sort'] == 'desc') ? 'DESC' : 'ASC') : $default_sort;
+
+	  $teacher = gradebookapi_is_teacher($gradebook);  
+	  // Make sure user has permission to be here.
+	  if (!$teacher && !empty($uid)) {
+		if ($uid != $account->uid) {
+		  drupal_access_denied();
+		  return;
+		}
+	  }
+
+	  // If user is not a teacher, set uid to own.
+	  if (!$teacher) {
+		$uid = $account->uid;
+	  }
+
+	  // MN: Problems here with $tids not being defined - breaks E_ALL compliance
+	  //     for now, set it equal to an empty array.
+	  $tids = array();
+
+	  // Note: don't use pager on export
+	  $assignments = gradebook_get_sorted_assignments($gradebook, $tids, !$export, $order, $sort);
+	  $students = gradebookapi_get_students($gradebook);
+	  if (!empty($uid)) {
+		$key = array_search($uid, $students['uid']);
+		if ($key) {
+		  $students = array('uid' => $students['uid'][$key], 'name' => $students['name'][$key]);
+		  $result = db_query("SELECT uid FROM {users} WHERE status <> 0 AND uid = :uid", array(':uid' => $uid));
+		}
+		else {
+		  $result = FALSE;
+		}
+	  }
+	  else {
+		if (!empty($students['uid'])) {
+		  $query = db_select('users', 'u')->fields('u', array('uid'));
+		  $result = $query
+			->condition('status', 0, '<>')
+			->condition('uid', $list_students_group, 'IN')
+			->orderBy('name', 'ASC')
+			->execute();
+		}
+		else {
+		  $result = FALSE;
+		}
+	  }
+	  if ($result) {
+		foreach ($result as $account) {
+		  $suid = $account->uid;
+		  $student_grades[$suid] = array();
+		  foreach ($assignments as $assignment) {
+			$student_grades[$suid][$assignment->nid] = gradebookapi_get_grade($suid, $assignment->nid);
+		  }
+		  $student_grades[$suid]['total'] = gradebookapi_get_term_grade($suid, $gradebook->tid);
+		}
+	  }
+
+	  $variables = array('gradebook' => $gradebook, 'assignments' => $assignments, 'students' => $students, 'student_grades' => $student_grades);
+	  if ($teacher) {
+		if ($export) {
+		  return theme('gradebook_export_page', $variables);
+		} 
+		else {
+		  return theme('gradebook_teacher_page', $variables);
+		}
+	  }
+	  else {
+		return  theme('gradebook_student_page', $variables);
+	  }
+}
+function _show_activity_of_user_github() {
+	global $user;
+	$html ="";
+	$credentials = Wconsumer::$github->getCredentials($user->uid);
+	if ($user->uid != 0) {
+		if (!$credentials) {
+		  $html .= "User not yet authorized access to his GitHub service profile. Click button:";
+		  $html .= render(drupal_get_form('github_activity_form'));
+		} else {
+			if (arg(0) == 'node') {
+				$gid = arg(1);
+				$result = db_select('og_membership', 'om')
+					->fields('om', array('etid','state'))
+					->condition('entity_type', 'user', '=')
+					->condition('gid', $gid, '=')
+					->execute();
+				drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css','theme');
+				while ($row = $result->fetchAssoc()) {
+					$info_user = user_load($row['etid']);
+					if (!empty($info_user->picture)) {
+						$default_picture = variable_get('user_picture_default', ''); 
+					} else {
+						$default_picture = $info_user->picture;
+					}
+					$img = file_create_url($default_picture);
+					$html .="<div class='activity_group_user'>";
+					$html .="<div class='left_info_user'>";
+					$html .="<img src='".$img."' />";
+					$html .="</div>";
+					$html .="<div class='right_info_user'>";
+					$html .="<p><a href='".url('user/'.$row['etid'])."'>".$info_user->name."</a></p>";
+					$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+					if ($row['state'] == 1) {
+						if (Wconsumer::$github->api($row['etid'], $scopes)) {
+							$api = Wconsumer::$github->api($row['etid'], $scopes);
+							$list_repository = $api->get('/user/repos')->send()->json();
+							foreach ($list_repository as $value) {
+								if (strpos($value['full_name'], 'mywebclass') !== false) {
+									$html .= "<p>Link GitHub: <a target='_blank' href='{$value['html_url']}'>".$value['html_url']."</a></p>";
+								}
+							}
+							$html .= "<a href='".$GLOBALS['base_url']."/activity/user_group?user_id=".$row['etid']."'>Detail</a>";
+						} else {
+							$html .= '<p>User not yet authorized access to his GitHub service profile</p>';
+						}
+					} else {
+						$node = node_load($gid);
+						if ($user->uid == $node->uid) {
+							$html .="<p><a href='".$GLOBALS['base_url']."/active_member_user?user_id=".$row['etid']."&group_id=".$gid."&status=1'>Approve Memeber</a> <a href='".$GLOBALS['base_url']."/active_member_user?user_id=".$row['etid']."&group_id=".$gid."&status=0'>Reject Memeber</a></p>";
+						}
+					}
+					$html .="</div>";
+					$html .="<div class='clear_both'></div>";
+					$html .="</div>";
+				}
+				$html .= "<div class='grade_book_group'>";
+				$html .= render(grade_book_for_group($gid));
+				$html .= "</div>";
+			}
+		}
+	}
+	return $html;
+}
+function _show_user_groups_activity() {
+	$html ="";
+	if (isset($_GET['user_id'])) {
+		$user_id = $_GET['user_id'];
+		set_time_limit(1000);  
+		$credentials = Wconsumer::$github->getCredentials($user_id);
+		if ($user_id != 0) {
+			if (!$credentials) {
+			  $html .= "User not yet authorized access to his GitHub service profile. Click button:";
+			  $html .= render(drupal_get_form('github_activity_form'));
+			} else {
+				drupal_add_css(drupal_get_path('module', 'github_activity') . '/style.css','theme');
+				drupal_add_css(drupal_get_path('module', 'github_activity') . '/jquery.jqplot.min.css','theme');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jquery.min.js');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jquery.jqplot.min.js');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.barRenderer.min.js');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.categoryAxisRenderer.min.js');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.pointLabels.min.js');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.canvasTextRenderer.min.js');
+				drupal_add_js(drupal_get_path('module', 'github_activity') . '/js/jqplot.canvasAxisTickRenderer.min.js');
+				
+				$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+				$api = Wconsumer::$github->api($user_id, $scopes);
+				$list_repository = $api->get('/user/repos')->send()->json();
+				$item = 1;
+				foreach($list_repository as $row) {
+					if (strpos($row['full_name'], 'mywebclass') !== false) {
+						$name_repository = $row['full_name'];
+						$list_total = "";
+						$list_author = "";
+						$statictis = $api->get('/repos/'.$name_repository.'/stats/contributors')->send()->json();
+						if (empty($statictis)) {
+							$html .= 'No activity for this repository';
+						} else {
+							foreach ($statictis as $value) {
+								$list_author .= "'".$value['author']['login']."', ";
+								$list_total .= $value['total'].", ";
+							}
+							$html .= "<script>$(document).ready(function(){";
+							$list_total = substr($list_total, 0, strlen($list_total) - 2);
+							$list_author = substr($list_author, 0, strlen($list_author) - 2);
+							
+							$html .= "var ticks = [{$list_author}];";
+							$html .= "var s1 = [".$list_total."];";
+							$path_redirect = $GLOBALS['base_url']."/activity/show?list_repository=".$name_repository."&user_id=".$user_id;
+							$html .= "plot3 = $.jqplot('chart_commit{$item}', [s1], {
+													captureRightClick: true,
+													seriesDefaults:{
+													  renderer:$.jqplot.BarRenderer,
+													  pointLabels: {show: true}
+													},
+													axes:{
+														xaxis:{
+															renderer:$.jqplot.CategoryAxisRenderer,
+															ticks:ticks,
+															tickRenderer: $.jqplot.CanvasAxisTickRenderer,
+															tickOptions: {
+																angle: -20,
+																fontSize: '10pt',
+																showMark: false,
+																showGridline: false
+															}
+														},
+														yaxis: {
+															min:0
+														}
+													},
+													series:[
+														{label:'Commits', color: '#EAA228'}
+													],
+													legend: {
+													  show: true,
+													  location: 'e',
+													  placement: 'outside'
+													}   
+												  });
+								
+								  $('#chart_commit{$item}').bind('jqplotDataClick',
+									function (ev, seriesIndex, pointIndex, data) {
+									  window.location.href = '{$path_redirect}';
+									}
+								  ); 
+								});</script>";
+							$html .= "<div class='list_user_group'>";
+							$html .= "	<div class='infor_user'>";
+							$html .= "	<p>Project: ".$name_repository."</p>";
+							$html .= "	</div>";
+							$html .= "	<div class='contributors_user'>";
+							$html .= "		<div id='chart_commit{$item}' style='width:100%; height:200px;'></div>";
+							$html .= "	</div>";
+							$html .= "	<div class='clear_both'></div>";
+							$html .= "</div>";
+							$item++;
+						}
+					}
+				}
+			}
+		}
+	}
+	return $html;
+}
+function github_activity_node_update($node) {
+	$result = db_select('og_membership', 'om')
+					->fields('om', array('etid','state'))
+					->condition('entity_type', 'user', '=')
+					->condition('gid', $node->nid, '=')
+					->condition('state', 1, '=')
+					->execute();
+	while ($row = $result->fetchAssoc()) {
+		$scopes = wconsumer_github_connect_wconsumer_define_required_scopes(Wconsumer::$github);
+		if (Wconsumer::$github->api($row['etid'], $scopes)) {
+			$api = Wconsumer::$github->api($row['etid'], $scopes);
+			$info_user = $api->get('/user')->send()->json();
+			
+			$path_sha_file = urlencode($node->title."/Readme.md");
+			$get_sha_file = $api->get('/repos/'.urlencode($info_user['login']).'/mywebclass/contents/'.$path_sha_file)->send()->json();
+			$data_string = json_encode(array(
+								"message" => "update file readme",
+								"committer" => array(
+									"name" => $info_user['login'],
+									"email" => $info_user['email']
+								),
+								"content" => base64_encode($node->body['und'][0]['value']),
+								"sha" => $get_sha_file['sha']
+							));
+			$updateFile = $api->put('/repos/'.urlencode($info_user['login']).'/mywebclass/contents/'.$path_sha_file, NULL, $data_string)->send()->json();
+		}
+	}
+}
+function github_activity_menu_local_tasks_alter(&$data, $router_item, $root_path) {
+	if (arg(0) == 'node') {
+		$nid = arg(1);
+		$node = node_load($nid);
+		if (isset($data['tabs'][0]['output'])) {
+			foreach ($data['tabs'][0]['output'] as $key=>$value) {
+				if ($value['#link']['path'] == 'node/%/members' || $value['#link']['path'] == 'node/%/calendar_group') {
+					if ($node->type != 'course_section') {
+						unset($data['tabs'][0]['output'][$key]);
+					}
+				}
+				if ($value['#link']['path'] == 'node/%/group') {
+					$data['tabs'][0]['output'][$key]['#link']['title'] = 'Manage Course';
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,79 @@
+ul.activity_github li {
+	float: left;
+	border-right: 1px solid #DDDDDD;
+	border-bottom: 1px solid #DDDDDD;
+	padding: 15px;
+	list-style-type: none;
+	width: 29%;
+	text-align: center;
+}
+ul.activity_github li.last_child {
+	border-right: 0px solid #DDDDDD;
+}
+.clear_both {
+	clear: both;
+}
+.show_activity .left_activity {
+	float: left;
+	width: 5%;
+}
+.show_activity .right_activity {
+	float: right;
+	width: 92%;
+}
+.activity_user {
+	width: 100%;
+	border: 1px solid #DDDDDD;
+	border-radius: 5px 5px 0 0;
+}
+.region-content ul.activity_github {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+	background-color: #FFECD3;
+}
+h3.commit-group-heading {
+    background: none repeat scroll 0 0 #E6F1F6;
+    border: 1px solid #C5D5DD;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    color: #3A505B;
+    font-size: 13px;
+    margin: 15px 0 0;
+    padding: 5px 8px;
+    text-shadow: 0 1px white;
+}
+.show_activity {
+    padding: 15px;
+	border-top: 1px solid #DDDDDD;
+}
+.show_activity:hover{
+   background: #FCFCE2;
+}
+.list_user_group .infor_user {
+	float: left;
+	width: 25%;
+}
+.list_user_group .contributors_user {
+	float: right;
+	width: 70%;
+}
+.list_user_group .group {
+	padding: 15px;
+	border: 1px solid #DDDDDD;
+	margin-bottom: 10px;
+}
+table.jqplot-table-legend {
+	width: auto;
+}
+.activity_group_user .left_info_user {
+	float: left;
+	width: 9%;
+}
+.activity_group_user .right_info_user {
+	float: right;
+	width: 89%;
+}
+.activity_group_user {
+    margin-bottom: 30px;
+}

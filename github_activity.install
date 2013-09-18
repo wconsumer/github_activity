@@ -1,0 +1,147 @@
+<?php
+/**
+ * @file
+ * Install, update, and uninstall functions for the github_activity module.
+ *
+ * @package github_activity
+ * @subpackage schema
+ */
+function github_activity_schema() {
+  $schema = array();
+
+  $schema['infor_user_github'] = array(
+    'description' => 'Info User Of GitHub',
+
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+		'length' => 11,
+        'not null' => TRUE,
+        'description' => 'Primary Key: User ID'
+      ),
+      'login' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Name Login Of User'
+      ),
+      'avatar_url' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => NULL,
+      ),
+	  'gravatar_id' => array(
+        'type' => 'varchar',
+        'length' => 110,
+        'default' => NULL,
+      ), 
+	  'url' => array(
+        'type' => 'varchar',
+        'length' => 110,
+        'default' => NULL,
+      ),
+	  'name' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => NULL,
+      ),
+	  'company' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => NULL,
+      ),
+	  'blog' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => NULL,
+      ),
+	  'location' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => NULL,
+      ),
+	  'email' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => NULL,
+      ),
+	  'hireable' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => NULL,
+      ),
+	  'bio' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => NULL,
+      ),
+	  'public_repos' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => NULL,
+      ),
+	  'public_gists' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => NULL,
+      ),
+	  'followers' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => NULL,
+      ),
+	  'following' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => NULL,
+      ),
+	  'html_url' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => NULL,
+      ),
+	  'created_at' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => NULL,
+      ),
+	  'type' => array(
+        'type' => 'varchar',
+        'length' => 110,
+        'default' => NULL,
+      ),
+    ),
+    'primary key' => array('uid')
+  );
+  
+  $schema['message_hash_key'] = array(
+    'description' => 'Message User',
+
+    'fields' => array(
+      'mid' => array(
+        'type' => 'int',
+		'length' => 11,
+        'not null' => TRUE,
+        'description' => 'Primary Key: User ID'
+      ),
+      'keyhash' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'key'
+      ),
+	  'nid' => array(
+        'type' => 'int',
+        'length' => 11,
+        'default' => NULL,
+        'description' => 'nid'
+      ),
+    ),
+    'primary key' => array('mid')
+  );
+
+  
+  return $schema;
+}
